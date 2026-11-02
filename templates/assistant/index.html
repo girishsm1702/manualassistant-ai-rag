@@ -3,437 +3,153 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Manufacturing Manual Assistant | Grounded RAG & Telemetry</title>
-  <meta name="description" content="AI Assistant grounded strictly in verified manufacturing machine manuals with original PDF page citations.">
-  <link rel="stylesheet" href="/static/css/dashboard.css">
+  <title>Manufacturing Manual Assistant</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body>
-  <!-- Header Bar -->
-  <header class="header-bar">
-    <div class="brand-wrapper">
-      <div class="brand-icon">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-        </svg>
+<body class="bg-light">
+  <nav class="navbar navbar-dark bg-dark mb-4">
+    <div class="container">
+      <span class="navbar-brand">Manufacturing Manual Assistant</span>
+    </div>
+  </nav>
+  <main class="container pb-5">
+    <div class="row g-4">
+      <div class="col-lg-5">
+        <div class="card shadow-sm mb-4">
+          <div class="card-body">
+            <h1 class="h4">Upload a manual</h1>
+            <p class="text-muted">PDF text is extracted, chunked, and indexed for the selected machine only.</p>
+            <form id="upload-form">
+              <div class="mb-3">
+                <label class="form-label" for="upload_machine_id">Machine ID</label>
+                <input class="form-control" id="upload_machine_id" value="M-HP200" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="upload_manual_id">Manual ID</label>
+                <input class="form-control" id="upload_manual_id" value="MAN-HP200" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="upload_revision">Revision</label>
+                <input class="form-control" id="upload_revision" value="R2" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="upload_title">Title</label>
+                <input class="form-control" id="upload_title" value="Hydraulic Press HP-200 Operator Manual" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="upload_file">PDF file</label>
+                <input class="form-control" id="upload_file" type="file" accept="application/pdf,.pdf" required>
+              </div>
+              <button class="btn btn-outline-primary" type="submit" id="upload-button">Ingest PDF</button>
+              <p class="small text-muted mt-2 mb-0" id="upload-status">No file ingested in this session.</p>
+            </form>
+          </div>
+        </div>
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h2 class="h4">Ask a documented question</h2>
+            <p class="text-muted">Answers come only from uploaded manuals for the selected machine.</p>
+            <form id="ask-form">
+              <div class="mb-3">
+                <label class="form-label" for="machine_id">Machine ID</label>
+                <select class="form-select" id="machine_id" required>
+                  <option value="M-HP200">M-HP200</option>
+                  <option value="M-CNCX1">M-CNCX1</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="question">Question</label>
+                <textarea class="form-control" id="question" rows="4" required placeholder="What oil grade does the manual specify?"></textarea>
+              </div>
+              <button class="btn btn-primary" type="submit" id="ask-button">Ask</button>
+            </form>
+          </div>
+        </div>
       </div>
-      <div>
-        <h1 class="brand-title">Manufacturing Manual Assistant</h1>
-        <div class="brand-subtitle">Grounded Machine Knowledge Base &bull; SQL Machine Isolation</div>
+      <div class="col-lg-7">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h2 class="h5">Answer</h2>
+            <p class="small text-muted" id="status-line">No question asked yet.</p>
+            <pre class="bg-white border rounded p-3" id="answer" style="white-space: pre-wrap;">Waiting for a question.</pre>
+            <h3 class="h6 mt-4">Citations</h3>
+            <ul id="citations" class="list-group"></ul>
+          </div>
+        </div>
       </div>
     </div>
-
-    <!-- Live Telemetry Bar -->
-    <div class="header-telemetry">
-      <div class="pulse-indicator">
-        <span class="pulse-dot" id="health-pulse"></span>
-        <span id="health-status-text">System Online</span>
-      </div>
-      <div class="telemetry-badges">
-        <div class="stat-pill" title="Database Engine">
-          DB: <strong id="health-db">SQLite</strong>
-        </div>
-        <div class="stat-pill" title="Vector Backend">
-          Store: <strong id="health-vector">django_chunks</strong>
-        </div>
-        <div class="stat-pill" title="Total Indexed Chunks">
-          Chunks: <strong id="health-chunks">0</strong>
-        </div>
-        <div class="stat-pill" title="pgvector Status">
-          pgvector: <strong id="health-pgvector">Ready</strong>
-        </div>
-      </div>
-    </div>
-  </header>
-
-  <!-- Main Dashboard Grid -->
-  <main class="dashboard-container">
-    <!-- Left Column: Ask Form & Manual Upload -->
-    <section>
-      <!-- Ask Question Panel -->
-      <div class="card-panel">
-        <div class="panel-header">
-          <h2 class="panel-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-            Ask Documented Question
-          </h2>
-        </div>
-        <p class="panel-desc">
-          Answers are strictly grounded in technical manual passages. Machine isolation is enforced in SQL before vector similarity scoring.
-        </p>
-
-        <!-- Machine Quick Selection Chips -->
-        <div class="machine-chips" id="machine-chips-container">
-          <button type="button" class="machine-chip active" data-machine="M-HP200">
-            <span>&#9881;</span> M-HP200 (Hydraulic Press)
-          </button>
-          <button type="button" class="machine-chip" data-machine="M-CNCX1">
-            <span>&#9881;</span> M-CNCX1 (CNC Mill)
-          </button>
-        </div>
-
-        <form id="ask-form">
-          <div class="form-group">
-            <label class="form-label" for="machine_id">Selected Machine Target</label>
-            <select class="form-select" id="machine_id" required>
-              <option value="M-HP200">M-HP200</option>
-              <option value="M-CNCX1">M-CNCX1</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="question">Technical Question</label>
-            <textarea class="form-control" id="question" rows="4" required placeholder="e.g. What oil grade does the manual specify for routine lubrication?"></textarea>
-          </div>
-
-          <!-- Quick Test Prompt Chips -->
-          <div class="sample-prompts">
-            <div class="sample-prompts-label">Quick Operator Scenarios</div>
-            <button type="button" class="prompt-btn" data-machine="M-HP200" data-q="What does the manual say about routine maintenance lubrication?">
-              <span>Routine Maintenance &amp; Lubrication</span>
-              <span class="tag">M-HP200</span>
-            </button>
-            <button type="button" class="prompt-btn" data-machine="M-HP200" data-q="What is the maximum system pressure?">
-              <span>Maximum Operating System Pressure</span>
-              <span class="tag">M-HP200</span>
-            </button>
-            <button type="button" class="prompt-btn" data-machine="M-CNCX1" data-q="How long should the spindle warm-up run before cutting?">
-              <span>Spindle Warm-up Duration &amp; RPM</span>
-              <span class="tag">M-CNCX1</span>
-            </button>
-            <button type="button" class="prompt-btn" data-machine="M-HP200" data-q="How long should the spindle warm-up run before cutting?">
-              <span>Isolation Test: Ask CNC question on Press</span>
-              <span class="tag" style="color: var(--accent-amber);">Adversarial</span>
-            </button>
-          </div>
-
-          <div style="margin-top: 1.5rem;">
-            <button class="btn-primary" type="submit" id="ask-button">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13"/>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-              </svg>
-              <span>Query Assistant</span>
-            </button>
-          </div>
-        </form>
-      </div>
-
-      <!-- Upload Manual Panel -->
-      <div class="card-panel">
-        <div class="panel-header">
-          <h2 class="panel-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-            Ingest Machine Manual
-          </h2>
-        </div>
-        <p class="panel-desc">Extracts PDF text, performs OCR on scanned diagrams when enabled, computes embeddings, and stores chunks in the isolated SQL database.</p>
-        
-        <form id="upload-form">
-          <div class="file-dropzone" id="drop-zone">
-            <div class="dropzone-icon">&#128196;</div>
-            <div style="font-weight: 500; font-size: 0.9rem;">Click or Drag &amp; Drop PDF manual here</div>
-            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Standard or scanned PDF up to 50MB</div>
-            <div class="file-chosen-name" id="chosen-file-display" style="display: none;"></div>
-            <input id="upload_file" type="file" accept="application/pdf,.pdf" style="display: none;" required>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem;">
-            <div class="form-group">
-              <label class="form-label" for="upload_machine_id">Machine ID</label>
-              <input class="form-control" id="upload_machine_id" value="M-HP200" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="upload_manual_id">Manual ID</label>
-              <input class="form-control" id="upload_manual_id" value="MAN-HP200" required>
-            </div>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 0.85rem;">
-            <div class="form-group">
-              <label class="form-label" for="upload_revision">Revision</label>
-              <input class="form-control" id="upload_revision" value="R2" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="upload_title">Manual Title</label>
-              <input class="form-control" id="upload_title" value="Hydraulic Press HP-200 Operator Manual" required>
-            </div>
-          </div>
-
-          <button class="btn-secondary" type="submit" id="upload-button" style="margin-top: 0.5rem;">
-            Ingest PDF into Database
-          </button>
-          <div id="upload-status" class="empty-state" style="padding: 0.75rem 0 0 0; font-size: 0.8rem;">Ready for ingestion.</div>
-        </form>
-      </div>
-    </section>
-
-    <!-- Right Column: Results, Grounded Answers & Evidence -->
-    <section>
-      <!-- Answer Panel -->
-      <div class="card-panel">
-        <div class="panel-header">
-          <h2 class="panel-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-              <polyline points="10 9 9 9 8 9"/>
-            </svg>
-            Grounded Technical Response
-          </h2>
-
-          <div class="latency-tag" id="latency-display">
-            <span>&#9889;</span> <span id="latency-value">-- ms</span>
-          </div>
-        </div>
-
-        <div class="response-container">
-          <!-- Status Ribbon -->
-          <div class="status-ribbon">
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-              <span class="status-chip idle" id="status-chip">Idle</span>
-              <span id="status-line" style="font-size: 0.85rem; color: var(--text-secondary);">Select a machine and ask a question to begin.</span>
-            </div>
-          </div>
-
-          <!-- Answer Body -->
-          <div class="answer-card" id="answer">Awaiting technical query. Enter a question on the left or click any scenario chip.</div>
-          
-          <div class="answer-actions">
-            <button class="copy-btn" id="copy-btn" type="button">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-              </svg>
-              <span id="copy-text">Copy Response</span>
-            </button>
-          </div>
-
-          <!-- Citations & Verified Evidence -->
-          <div>
-            <div class="panel-header" style="margin-top: 1rem;">
-              <h3 class="panel-title" style="font-size: 0.95rem;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-                </svg>
-                Verified Manual Citations
-              </h3>
-            </div>
-            
-            <div class="citations-grid" id="citations">
-              <div class="empty-state" style="grid-column: 1 / -1;">No citations retrieved yet.</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Ingested Manuals Registry -->
-      <div class="card-panel">
-        <div class="panel-header">
-          <h2 class="panel-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-              <line x1="8" y1="21" x2="16" y2="21"/>
-              <line x1="12" y1="17" x2="12" y2="21"/>
-            </svg>
-            Database Manuals Registry
-          </h2>
-          <button class="copy-btn" id="refresh-manuals-btn" type="button">Refresh</button>
-        </div>
-        <div class="manual-list" id="manual-registry-list">
-          <div class="empty-state">Loading registry...</div>
-        </div>
-      </div>
-    </section>
   </main>
-
-  <!-- Interactive JavaScript Logic -->
   <script>
     const form = document.getElementById("ask-form");
     const uploadForm = document.getElementById("upload-form");
     const statusLine = document.getElementById("status-line");
-    const statusChip = document.getElementById("status-chip");
     const answerEl = document.getElementById("answer");
     const citationsEl = document.getElementById("citations");
     const button = document.getElementById("ask-button");
     const uploadButton = document.getElementById("upload-button");
     const uploadStatus = document.getElementById("upload-status");
     const machineSelect = document.getElementById("machine_id");
-    const latencyVal = document.getElementById("latency-value");
-    const latencyDisplay = document.getElementById("latency-display");
-    const manualRegistryList = document.getElementById("manual-registry-list");
-    const dropZone = document.getElementById("drop-zone");
-    const fileInput = document.getElementById("upload_file");
-    const chosenFileDisplay = document.getElementById("chosen-file-display");
-    const copyBtn = document.getElementById("copy-btn");
-    const copyText = document.getElementById("copy-text");
 
-    // Fetch Health Status & Telemetry
-    async function updateHealth() {
-      try {
-        const res = await fetch("/api/v1/health/");
-        if (!res.ok) throw new Error("Health degraded");
-        const data = await res.json();
-        document.getElementById("health-db").textContent = data.database?.engine || "sqlite";
-        document.getElementById("health-vector").textContent = data.vector_backend || "django_chunks";
-        document.getElementById("health-chunks").textContent = data.chunk_count || 0;
-        document.getElementById("health-pgvector").textContent = data.pgvector_ready ? "Active" : "Prepared";
-        document.getElementById("health-status-text").textContent = data.status === "ok" ? "System Live" : "Degraded";
-        document.getElementById("health-pulse").style.backgroundColor = data.status === "ok" ? "var(--accent-emerald)" : "var(--accent-amber)";
-      } catch (err) {
-        document.getElementById("health-status-text").textContent = "Service Offline";
-        document.getElementById("health-pulse").style.backgroundColor = "var(--accent-rose)";
-      }
-    }
-
-    // Refresh Manuals & Populate Dropdowns
     async function refreshManuals() {
+      const response = await fetch("/api/v1/assistant/manuals/");
+      const data = await response.json();
+      const manuals = data.manuals || [];
+      if (!manuals.length) {
+        return;
+      }
+      const ids = [...new Set(manuals.map((item) => item.machine_id))];
+      machineSelect.innerHTML = "";
+      ids.forEach((id) => {
+        const option = document.createElement("option");
+        option.value = id;
+        option.textContent = id;
+        machineSelect.appendChild(option);
+      });
+    }
+
+    refreshManuals().catch((error) => {
+      uploadStatus.textContent = "Could not load ingested manuals: " + error;
+    });
+
+    uploadForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const fileInput = document.getElementById("upload_file");
+      if (!fileInput.files.length) {
+        uploadStatus.textContent = "Choose a PDF first.";
+        return;
+      }
+      const payload = new FormData();
+      payload.append("machine_id", document.getElementById("upload_machine_id").value);
+      payload.append("manual_id", document.getElementById("upload_manual_id").value);
+      payload.append("revision", document.getElementById("upload_revision").value);
+      payload.append("title", document.getElementById("upload_title").value);
+      payload.append("file", fileInput.files[0]);
+      uploadButton.disabled = true;
+      uploadStatus.textContent = "Extracting and embedding PDF...";
       try {
-        const response = await fetch("/api/v1/assistant/manuals/");
+        const response = await fetch("/api/v1/assistant/ingest/", {
+          method: "POST",
+          body: payload
+        });
         const data = await response.json();
-        const manuals = data.manuals || [];
-        
-        // Update Registry list
-        if (!manuals.length) {
-          manualRegistryList.innerHTML = '<div class="empty-state">No manuals currently indexed in the database.</div>';
-          return;
+        if (!response.ok) {
+          throw new Error(JSON.stringify(data));
         }
-
-        manualRegistryList.innerHTML = "";
-        manuals.forEach(m => {
-          const item = document.createElement("div");
-          item.className = "manual-item";
-          item.innerHTML = `
-            <div>
-              <div class="manual-item-title">${m.title}</div>
-              <div class="manual-item-meta">Machine: <strong>${m.machine_id}</strong> &bull; Manual ID: ${m.manual_id}</div>
-            </div>
-            <div style="display:flex; gap: 0.5rem; align-items:center;">
-              <span class="rev-badge">Rev ${m.revision}</span>
-              <span class="page-badge">${m.page_count}p / ${m.chunk_count} chunks</span>
-            </div>
-          `;
-          manualRegistryList.appendChild(item);
-        });
-
-        // Update Machine Selector
-        const currentVal = machineSelect.value;
-        const ids = [...new Set(manuals.map((item) => item.machine_id))];
-        machineSelect.innerHTML = "";
-        ids.forEach((id) => {
-          const option = document.createElement("option");
-          option.value = id;
-          option.textContent = id;
-          machineSelect.appendChild(option);
-        });
-        if (ids.includes(currentVal)) {
-          machineSelect.value = currentVal;
-        }
+        uploadStatus.textContent = `Ingested ${data.chunk_count} chunks from ${data.page_count} pages (${data.status}).`;
+        await refreshManuals();
+        machineSelect.value = document.getElementById("upload_machine_id").value;
       } catch (error) {
-        manualRegistryList.innerHTML = `<div class="empty-state" style="color:var(--accent-rose)">Failed to load registry: ${error}</div>`;
-      }
-    }
-
-    // Drag and drop PDF handlers
-    dropZone.addEventListener("click", () => fileInput.click());
-    dropZone.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      dropZone.classList.add("dragover");
-    });
-    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
-    dropZone.addEventListener("drop", (e) => {
-      e.preventDefault();
-      dropZone.classList.remove("dragover");
-      if (e.dataTransfer.files.length) {
-        fileInput.files = e.dataTransfer.files;
-        handleFileSelect(fileInput.files[0]);
-      }
-    });
-    fileInput.addEventListener("change", () => {
-      if (fileInput.files.length) handleFileSelect(fileInput.files[0]);
-    });
-
-    function handleFileSelect(file) {
-      chosenFileDisplay.style.display = "block";
-      chosenFileDisplay.textContent = `Selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
-    }
-
-    // Machine Switcher Chips
-    document.querySelectorAll(".machine-chip").forEach(chip => {
-      chip.addEventListener("click", () => {
-        document.querySelectorAll(".machine-chip").forEach(c => c.classList.remove("active"));
-        chip.classList.add("active");
-        const mId = chip.dataset.machine;
-        machineSelect.value = mId;
-        document.getElementById("upload_machine_id").value = mId;
-      });
-    });
-
-    machineSelect.addEventListener("change", () => {
-      document.querySelectorAll(".machine-chip").forEach(c => {
-        c.classList.toggle("active", c.dataset.machine === machineSelect.value);
-      });
-      document.getElementById("upload_machine_id").value = machineSelect.value;
-    });
-
-    // Sample prompt click
-    document.querySelectorAll(".prompt-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const m = btn.dataset.machine;
-        const q = btn.dataset.q;
-        machineSelect.value = m;
-        document.querySelectorAll(".machine-chip").forEach(c => {
-          c.classList.toggle("active", c.dataset.machine === m);
-        });
-        document.getElementById("question").value = q;
-        document.getElementById("question").focus();
-      });
-    });
-
-    // Keyboard shortcut: Ctrl+Enter to submit
-    document.getElementById("question").addEventListener("keydown", (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-        form.requestSubmit();
+        uploadStatus.textContent = "Upload failed: " + error;
+      } finally {
+        uploadButton.disabled = false;
       }
     });
 
-    // Copy Answer
-    copyBtn.addEventListener("click", () => {
-      const text = answerEl.textContent;
-      navigator.clipboard.writeText(text).then(() => {
-        copyText.textContent = "Copied!";
-        setTimeout(() => copyText.textContent = "Copy Response", 2000);
-      });
-    });
-
-    document.getElementById("refresh-manuals-btn").addEventListener("click", () => {
-      refreshManuals();
-      updateHealth();
-    });
-
-    // Ask Question Submission
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       button.disabled = true;
-      button.innerHTML = '<span class="spinner"></span> <span>Searching SQL Chunks...</span>';
-      statusLine.textContent = "Retrieving isolated database chunks & evaluating grounded evidence...";
-      statusChip.className = "status-chip idle";
-      statusChip.textContent = "Processing";
-      citationsEl.innerHTML = '<div class="empty-state" style="grid-column: 1 / -1;">Retrieving citations...</div>';
-      latencyVal.textContent = "...";
-
-      const startTime = performance.now();
-
+      statusLine.textContent = "Retrieving manual evidence...";
+      citationsEl.innerHTML = "";
       try {
         const response = await fetch("/api/v1/assistant/ask/", {
           method: "POST",
@@ -445,112 +161,23 @@
         });
         const data = await response.json();
         if (!response.ok) {
-          throw new Error(data.detail || JSON.stringify(data));
+          throw new Error(JSON.stringify(data));
         }
-
-        // Latency
-        const latency = data.latency_ms !== undefined ? `${data.latency_ms.toFixed(1)} ms` : `${(performance.now() - startTime).toFixed(1)} ms`;
-        latencyVal.textContent = latency;
-        latencyDisplay.className = "latency-tag fast";
-
-        // Status
-        const isGrounded = data.status === "grounded";
-        statusChip.className = `status-chip ${isGrounded ? "grounded" : "insufficient"}`;
-        statusChip.innerHTML = isGrounded ? "&#10003; Grounded" : "&#9888; Insufficient Evidence";
-        statusLine.textContent = isGrounded 
-          ? `Grounded in ${data.citations?.length || 0} verified passages for ${data.machine_id}.`
-          : `Honest refusal: evidence missing or insufficient for ${data.machine_id}.`;
-
+        statusLine.textContent = "Evidence status: " + data.status;
         answerEl.textContent = data.answer;
-
-        // Render Citations
-        citationsEl.innerHTML = "";
-        const citations = data.citations || [];
-        if (!citations.length) {
-          citationsEl.innerHTML = '<div class="empty-state" style="grid-column: 1 / -1;">No manual passages met the similarity confidence threshold.</div>';
-        } else {
-          citations.forEach((cit) => {
-            const card = document.createElement("div");
-            card.className = "citation-card";
-            card.innerHTML = `
-              <div>
-                <div class="citation-header">
-                  <div class="citation-title">${cit.title}</div>
-                  <div class="citation-meta">
-                    <span class="rev-badge">Rev ${cit.revision}</span>
-                    <span class="page-badge">Page ${cit.page_number}</span>
-                  </div>
-                </div>
-                <div class="citation-excerpt">"${cit.excerpt}"</div>
-              </div>
-            `;
-            citationsEl.appendChild(card);
-          });
-        }
+        (data.citations || []).forEach((citation) => {
+          const item = document.createElement("li");
+          item.className = "list-group-item";
+          item.textContent = `${citation.title} (rev ${citation.revision}), page ${citation.page_number}: ${citation.excerpt}`;
+          citationsEl.appendChild(item);
+        });
       } catch (error) {
-        statusChip.className = "status-chip insufficient";
-        statusChip.textContent = "Error";
         statusLine.textContent = "Request failed";
         answerEl.textContent = String(error);
-        citationsEl.innerHTML = '<div class="empty-state" style="grid-column: 1 / -1;">Query encountered an error.</div>';
       } finally {
         button.disabled = false;
-        button.innerHTML = `
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="22" y1="2" x2="11" y2="13"/>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-          </svg>
-          <span>Query Assistant</span>
-        `;
       }
     });
-
-    // Ingest Manual Submission
-    uploadForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (!fileInput.files.length) {
-        uploadStatus.textContent = "Please select or drop a PDF file first.";
-        uploadStatus.style.color = "var(--accent-amber)";
-        return;
-      }
-      const payload = new FormData();
-      payload.append("machine_id", document.getElementById("upload_machine_id").value);
-      payload.append("manual_id", document.getElementById("upload_manual_id").value);
-      payload.append("revision", document.getElementById("upload_revision").value);
-      payload.append("title", document.getElementById("upload_title").value);
-      payload.append("file", fileInput.files[0]);
-
-      uploadButton.disabled = true;
-      uploadButton.innerHTML = '<span class="spinner"></span> <span>Extracting, OCR &amp; Embedding...</span>';
-      uploadStatus.textContent = "Extracting text, chunking, and computing embeddings...";
-      uploadStatus.style.color = "var(--primary)";
-
-      try {
-        const response = await fetch("/api/v1/assistant/ingest/", {
-          method: "POST",
-          body: payload
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(JSON.stringify(data));
-
-        uploadStatus.textContent = `Successfully indexed ${data.chunk_count} chunks across ${data.page_count} pages (${data.status}).`;
-        uploadStatus.style.color = "var(--accent-emerald)";
-        await refreshManuals();
-        await updateHealth();
-        fileInput.value = "";
-        chosenFileDisplay.style.display = "none";
-      } catch (error) {
-        uploadStatus.textContent = "Ingestion failed: " + error;
-        uploadStatus.style.color = "var(--accent-rose)";
-      } finally {
-        uploadButton.disabled = false;
-        uploadButton.textContent = "Ingest PDF into Database";
-      }
-    });
-
-    // Initial Load
-    updateHealth();
-    refreshManuals();
   </script>
 </body>
 </html>

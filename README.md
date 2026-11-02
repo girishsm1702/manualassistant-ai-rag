@@ -15,11 +15,9 @@ This repository is a fully integrated, production-ready prototype configured for
   * SQL-level machine isolation and hybrid search (BM25 + Cosine similarity).
   * `python manage.py run_rag_evaluation` benchmark suite reporting accuracy and latency metrics.
 * **Member 2 (Frontend & UI/UX Design)**:
-  * Sleek dark engineering dashboard theme located in [`static/css/dashboard.css`](file:///c:/Users/giris/manual%20assistant/static/css/dashboard.css).
-  * Real-time telemetry monitoring [`/api/v1/health/`](http://127.0.0.1:8000/api/v1/health/).
-  * Drag-and-drop PDF ingestion studio with progress feedback.
-  * Citation inspector with page badges, revision tracking, and verbatim context excerpts.
-  * Interactive scenario chips (lubrication, pressure, spindle warm-up, adversarial isolation).
+  * Drop custom UI/UX templates directly into `templates/` and static assets into `static/`.
+  * Clean REST API contracts available for `/api/v1/assistant/ask/`, `/api/v1/assistant/ingest/`, `/api/v1/assistant/manuals/`, and `/api/v1/health/`.
+  * Minimal baseline HTML harness provided in `templates/assistant/index.html` for immediate end-to-end integration testing.
 
 ---
 
