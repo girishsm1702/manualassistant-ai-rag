@@ -22,6 +22,7 @@ class AskView(APIView):
                 machine_id=serializer.validated_data["machine_id"],
                 question=serializer.validated_data["question"],
                 revision=serializer.validated_data.get("revision"),
+                min_score=serializer.validated_data.get("min_score"),
             )
         except ValueError as exc:
             logger.warning("Ask rejected: %s", exc)

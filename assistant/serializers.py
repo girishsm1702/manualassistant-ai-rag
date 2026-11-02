@@ -5,6 +5,7 @@ class AskRequestSerializer(serializers.Serializer):
     machine_id = serializers.CharField(max_length=64)
     question = serializers.CharField()
     revision = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    min_score = serializers.FloatField(required=False, min_value=0.0, max_value=1.0)
 
 
 class IngestRequestSerializer(serializers.Serializer):

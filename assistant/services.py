@@ -77,11 +77,17 @@ def ingest_manual(
     return result
 
 
-def ask_question(machine_id: str, question: str, revision: str | None = None) -> AskResult:
+def ask_question(
+    machine_id: str,
+    question: str,
+    revision: str | None = None,
+    min_score: float | None = None,
+) -> AskResult:
     result = get_rag_service().ask(
         machine_id=machine_id,
         question=question,
         revision=revision or None,
+        min_score=min_score,
     )
     QuestionRecord.objects.create(
         machine_id=machine_id,
@@ -126,11 +132,21 @@ def health_status() -> dict:
     except OperationalError as exc:
         db_ok = False
         db_error = str(exc)
+
+    pgvector_active = False
+    if db_ok and connection.vendor == "postgresql":
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1 FROM pg_extension WHERE extname = 'vector'")
+                pgvector_active = bool(cursor.fetchone())
+        except Exception:
+            pgvector_active = False
+
     return {
         "status": "ok" if db_ok else "degraded",
         "database": {"ok": db_ok, "engine": connection.vendor, "error": db_error},
-        "vector_backend": "django_chunks",
-        "pgvector_ready": connection.vendor == "postgresql",
+        "vector_backend": "django_pgvector" if pgvector_active else "django_chunks",
+        "pgvector_ready": pgvector_active or (connection.vendor == "postgresql"),
         "chunk_count": ManualChunk.objects.count(),
         "manual_count": ManualRecord.objects.count(),
     }
