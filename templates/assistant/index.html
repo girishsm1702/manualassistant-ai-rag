@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manufacturing Manual Assistant</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+  <nav class="navbar navbar-dark bg-dark mb-4">
+    <div class="container">
+      <span class="navbar-brand">Manufacturing Manual Assistant</span>
+    </div>
+  </nav>
+  <main class="container pb-5">
+    <div class="row g-4">
+      <div class="col-lg-5">
+        <div class="card shadow-sm mb-4">
+          <div class="card-body">
+            <h1 class="h4">Upload a manual</h1>
+            <p class="text-muted">PDF text is extracted, chunked, and indexed for the selected machine only.</p>
+            <form id="upload-form">
+              <div class="mb-3">
+                <label class="form-label" for="upload_machine_id">Machine ID</label>
+                <input class="form-control" id="upload_machine_id" value="M-HP200" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="upload_manual_id">Manual ID</label>
+                <input class="form-control" id="upload_manual_id" value="MAN-HP200" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="upload_revision">Revision</label>
+                <input class="form-control" id="upload_revision" value="R2" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="upload_title">Title</label>
+                <input class="form-control" id="upload_title" value="Hydraulic Press HP-200 Operator Manual" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="upload_file">PDF file</label>
+                <input class="form-control" id="upload_file" type="file" accept="application/pdf,.pdf" required>
+              </div>
+              <button class="btn btn-outline-primary" type="submit" id="upload-button">Ingest PDF</button>
+              <p class="small text-muted mt-2 mb-0" id="upload-status">No file ingested in this session.</p>
+            </form>
+          </div>
+        </div>
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h2 class="h4">Ask a documented question</h2>
+            <p class="text-muted">Answers come only from uploaded manuals for the selected machine.</p>
+            <form id="ask-form">
+              <div class="mb-3">
+                <label class="form-label" for="machine_id">Machine ID</label>
+                <select class="form-select" id="machine_id" required>
+                  <option value="M-HP200">M-HP200</option>
+                  <option value="M-CNCX1">M-CNCX1</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="question">Question</label>
+                <textarea class="form-control" id="question" rows="4" required placeholder="What oil grade does the manual specify?"></textarea>
+              </div>
+              <button class="btn btn-primary" type="submit" id="ask-button">Ask</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h2 class="h5">Answer</h2>
+            <p class="small text-muted" id="status-line">No question asked yet.</p>
+            <pre class="bg-white border rounded p-3" id="answer" style="white-space: pre-wrap;">Waiting for a question.</pre>
+            <h3 class="h6 mt-4">Citations</h3>
+            <ul id="citations" class="list-group"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script>
+    const form = document.getElementById("ask-form");
+    const uploadForm = document.getElementById("upload-form");
+    const statusLine = document.getElementById("status-line");
+    const answerEl = document.getElementById("answer");
+    const citationsEl = document.getElementById("citations");
+    const button = document.getElementById("ask-button");
+    const uploadButton = document.getElementById("upload-button");
+    const uploadStatus = document.getElementById("upload-status");
+    const machineSelect = document.getElementById("machine_id");
+
+    async function refreshManuals() {
+      const response = await fetch("/api/v1/assistant/manuals/");
+      const data = await response.json();
+      const manuals = data.manuals || [];
+      if (!manuals.length) {
+        return;
+      }
+      const ids = [...new Set(manuals.map((item) => item.machine_id))];
+      machineSelect.innerHTML = "";
+      ids.forEach((id) => {
+        const option = document.createElement("option");
+        option.value = id;
+        option.textContent = id;
+        machineSelect.appendChild(option);
+      });
+    }
+
+    refreshManuals().catch((error) => {
+      uploadStatus.textContent = "Could not load ingested manuals: " + error;
+    });
+
+    uploadForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const fileInput = document.getElementById("upload_file");
+      if (!fileInput.files.length) {
+        uploadStatus.textContent = "Choose a PDF first.";
+        return;
+      }
+      const payload = new FormData();
+      payload.append("machine_id", document.getElementById("upload_machine_id").value);
+      payload.append("manual_id", document.getElementById("upload_manual_id").value);
+      payload.append("revision", document.getElementById("upload_revision").value);
+      payload.append("title", document.getElementById("upload_title").value);
+      payload.append("file", fileInput.files[0]);
+      uploadButton.disabled = true;
+      uploadStatus.textContent = "Extracting and embedding PDF...";
+      try {
+        const response = await fetch("/api/v1/assistant/ingest/", {
+          method: "POST",
+          body: payload
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(JSON.stringify(data));
+        }
+        uploadStatus.textContent = `Ingested ${data.chunk_count} chunks from ${data.page_count} pages (${data.status}).`;
+        await refreshManuals();
+        machineSelect.value = document.getElementById("upload_machine_id").value;
+      } catch (error) {
+        uploadStatus.textContent = "Upload failed: " + error;
+      } finally {
+        uploadButton.disabled = false;
+      }
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      button.disabled = true;
+      statusLine.textContent = "Retrieving manual evidence...";
+      citationsEl.innerHTML = "";
+      try {
+        const response = await fetch("/api/v1/assistant/ask/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            machine_id: machineSelect.value,
+            question: document.getElementById("question").value
+          })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(JSON.stringify(data));
+        }
+        statusLine.textContent = "Evidence status: " + data.status;
+        answerEl.textContent = data.answer;
+        (data.citations || []).forEach((citation) => {
+          const item = document.createElement("li");
+          item.className = "list-group-item";
+          item.textContent = `${citation.title} (rev ${citation.revision}), page ${citation.page_number}: ${citation.excerpt}`;
+          citationsEl.appendChild(item);
+        });
+      } catch (error) {
+        statusLine.textContent = "Request failed";
+        answerEl.textContent = String(error);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

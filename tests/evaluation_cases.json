@@ -1,0 +1,32 @@
+[
+  {
+    "id": "hp200-maintenance",
+    "machine_id": "M-HP200",
+    "question": "What does the manual say about routine maintenance lubrication?",
+    "expect_status": "grounded",
+    "expect_page": 3,
+    "must_contain": "ISO VG 68"
+  },
+  {
+    "id": "hp200-pressure",
+    "machine_id": "M-HP200",
+    "question": "What is the maximum system pressure?",
+    "expect_status": "grounded",
+    "expect_page": 4,
+    "must_contain": "200 bar"
+  },
+  {
+    "id": "hp200-isolation",
+    "machine_id": "M-HP200",
+    "question": "How long should the spindle warm-up run before cutting?",
+    "expect_status": "insufficient_or_no_foreign_machine",
+    "forbidden": "1000 RPM"
+  },
+  {
+    "id": "hp200-unsupported",
+    "machine_id": "M-HP200",
+    "question": "What is the factory Wi-Fi password for this press?",
+    "expect_status": "insufficient_evidence",
+    "min_score": 0.45
+  }
+]
